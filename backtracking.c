@@ -43,6 +43,7 @@ void cleanSolucion(int * solucion,int n){
 	}
 }
 
+
 // Añade las lineas de ficheros cubiertas por el caso de prueba "id" a la lista de lineas cubiertas y devuelve el numero de lineas cubiertas
 // por ese caso de prueba
 int addLineasCubiertas(data * d,line_coverage ** lineasCubiertas,int id){
@@ -60,7 +61,7 @@ int addLineasCubiertas(data * d,line_coverage ** lineasCubiertas,int id){
 			}	
 		}
 		else{
-			lineasCubiertas[numLineas+i] = lineasTest[i];
+			lineasCubiertas[i] = lineasTest[i];
 			numCobertura++;
 		}
 	}
@@ -71,7 +72,17 @@ int addLineasCubiertas(data * d,line_coverage ** lineasCubiertas,int id){
 	
 }
 
-void backtracking(data * d,int * solucion,int * mejorSolucion,int n,int nivel,line_coverage ** lineasCubiertas,int numCoberturaTotal,
+//Elimina las lineas de ficheros cubiertas por el caso de prueba "id"
+void deleteLineasCubiertas(data * d,line_coverage ** lineasCubiertas,int id){
+	int numLineas = getNumCoverage(lineasCubiertas);
+	int numLineasTest = getNumCoverageTestCase(d,id);
+	int posInicial = (numLineas-numLineasTest)+1; 
+	for (int j=posInicial;j<=numLineas;j++){
+		lineasCubiertas[j] == NULL;
+	}
+	
+}
+void backtracking(data * d,int solucion[],int * mejorSolucion,int n,int nivel,line_coverage ** lineasCubiertas,int numCoberturaTotal,
 		int numTest,int minNumTest,int maxCobertura,int numPosMaxCobertura,int * coberturas){
 
 	if (nivel == n-1){ //Caso en el que llegamos al ultimo nivel
@@ -80,16 +91,19 @@ void backtracking(data * d,int * solucion,int * mejorSolucion,int n,int nivel,li
 				solucion[nivel] = i+1;
 				numTest++;
 				int numCobertura = addLineasCubiertas(d,lineasCubiertas,i+1);
-				coberturas[nivel] = numCobertura;
-				//numCoberturaTotal += numCobertura;
-				if (minNumTest == 0)
-					minNumTest = numTest;
+				numCoberturaTotal += numCobertura;
+				coberturas[nivel] = numCoberturaTotal;
+				
+				/*if (minNumTest == 0)
+					minNumTest = numTest;*/
 				maxCobertura = numCoberturaTotal;
-				if (minNumTest < numPosMaxCobertura){
-					minNumTest = numPosMaxCobertura;
-					numPosMaxCobertura = 0;
+				//if (minNumTest < numPosMaxCobertura){
+					//minNumTest = numPosMaxCobertura;
+					//numPosMaxCobertura = 0;
 					escribirMejorSolucion(solucion,n,mejorSolucion);
-				}
+					deleteLineasCubiertas(d,lineasCubiertas,i+1);
+					solucion[nivel] = 0;
+				//}
 				//cleanSolucion(solucion,n); 
 			}	
 		}
