@@ -77,8 +77,9 @@ void deleteLineasCubiertas(data * d,line_coverage ** lineasCubiertas,int id){
 	int numLineas = getNumCoverage(lineasCubiertas);
 	int numLineasTest = getNumCoverageTestCase(d,id);
 	int posInicial = (numLineas-numLineasTest)+1; 
-	for (int j=posInicial;j<=numLineas;j++){
-		lineasCubiertas[j] == NULL;
+	while (posInicial <= numLineas){
+		lineasCubiertas[posInicial] = NULL;
+		posInicial++;
 	}
 	
 }
