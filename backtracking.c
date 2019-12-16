@@ -92,7 +92,8 @@ void deleteLineasCubiertas(data * d,line_coverage ** lineasCubiertas,int id){
 	int numLineasTest = getCoberturaTestCase(lineasCubiertas,numLineas,id);
 	int posInicial = (numLineas-numLineasTest); 
 	while (posInicial < numLineas){
-		lineasCubiertas[posInicial] = NULL;
+		//lineasCubiertas[posInicial] = NULL;
+		free(lineasCubiertas[posInicial]);
 		posInicial++;
 	}
 	
@@ -129,7 +130,8 @@ void backtracking(data * d,int solucion[],int * mejorSolucion,int n,int nivel,li
 				}
 				solucion[nivel] = 0;
 				coberturas[nivel] = 0;
-				deleteLineasCubiertas(d,lineasCubiertas,i+1);		
+				deleteLineasCubiertas(d,lineasCubiertas,i+1);
+				numCoberturaTotal -= numCobertura;		
 			}
 		}
 	}
