@@ -139,13 +139,13 @@ int getNumCoverageTestCase(data * d,int id){
 }
 
 //Obtiene las entradas de cobertura de un caso de prueba
-line_coverage ** get_coverage_testCase(data * d ,int id, int * numLineas){
+line_coverage * get_coverage_testCase(data * d ,int id, int * numLineas){
 	int j=0;
 	*numLineas = getNumCoverageTestCase(d,id);
-	line_coverage ** lineas = (line_coverage **) malloc(sizeof(line_coverage *) * (*numLineas));  
+	line_coverage * lineas = (line_coverage *) malloc(sizeof(line_coverage) * (*numLineas));  
 	for (int i=0;i < d->num_coverage;i++){
 		if (d->coverage[i]->id_test == id){
-			lineas[j] = d->coverage[i];
+			lineas[j] = *(d->coverage[i]);
 			j++;
 		}		
 	}

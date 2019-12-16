@@ -33,7 +33,7 @@ test_case * find_test_case(data *d, int id);
 
 source_file * find_source_file(data *d, int id);
 
-line_coverage ** get_coverage_testCase(data * d ,int id,int * numLineas);
+line_coverage * get_coverage_testCase(data * d ,int id,int * numLineas);
 
 int getNumCoverageTestCase(data * d,int id);
 
