@@ -12,18 +12,18 @@ int valido(int * solucion,int n,int i){
 }
 
 //Comprueba si una linea de un fichero ya ha sido cubierta por un caso de prueba
-int isCubierta(line_coverage * linea,line_coverage ** lineasCubiertas,int numLineas){
+int isCubierta(line_coverage linea,line_coverage * lineasCubiertas,int numLineas){
 	for (int i=0;i<numLineas;i++){
-		if ((lineasCubiertas[i]->id_file == linea->id_file) && (lineasCubiertas[i]->line == linea->line)){
+		if ((lineasCubiertas[i].id_file == linea.id_file) && (lineasCubiertas[i].line == linea.line)){
 			return 1;
 		}
 	}
 	return 0;
 }
 //Función para obtener el número actual de entradas de cobertura procesadas 
-int getNumCoverage(line_coverage ** lineasCubiertas){
+int getNumCoverage(line_coverage * lineasCubiertas){
 	int i = 0;
-	while (lineasCubiertas[i] != NULL){
+	while (lineasCubiertas[i].id_test != 0){
 		i++;
 	}
 	return i;
@@ -50,10 +50,10 @@ void cleanSolucion(int * solucion,int n){
 	}
 }
 //Obtiene el número de lineas cubiertas por un caso de prueba
-int getCoberturaTestCase(line_coverage ** lineasCubiertas,int numLineas,int id){
+int getCoberturaTestCase(line_coverage * lineasCubiertas,int numLineas,int id){
 	int numTest = 0;
 	for (int i=0;i<numLineas;i++){
-		if (lineasCubiertas[i]->id_test == id){
+		if (lineasCubiertas[i].id_test == id){
 			numTest++;
 		}
 	}
@@ -63,12 +63,12 @@ int getCoberturaTestCase(line_coverage ** lineasCubiertas,int numLineas,int id){
 
 // Añade las lineas de ficheros cubiertas por el caso de prueba "id" a la lista de lineas cubiertas y devuelve el numero de lineas cubiertas
 // por ese caso de prueba
-int addLineasCubiertas(data * d,line_coverage ** lineasCubiertas,int id){
+int addLineasCubiertas(data * d,line_coverage * lineasCubiertas,int id){
 	int numLineasTest = 0;
 	int numCobertura = 0;
 	int j = 0;
 	int numLineas = getNumCoverage(lineasCubiertas);
-	line_coverage ** lineasTest = get_coverage_testCase(d,id,&numLineasTest);
+	line_coverage * lineasTest = get_coverage_testCase(d,id,&numLineasTest);
 	for (int i=0;i<numLineasTest;i++){
 		if (numLineas > 0){
 			if (!isCubierta(lineasTest[i],lineasCubiertas,numLineas)){
@@ -87,18 +87,20 @@ int addLineasCubiertas(data * d,line_coverage ** lineasCubiertas,int id){
 }
 
 //Elimina las lineas de ficheros cubiertas por el caso de prueba "id"
-void deleteLineasCubiertas(data * d,line_coverage ** lineasCubiertas,int id){
+void deleteLineasCubiertas(data * d,line_coverage * lineasCubiertas,int id){
 	int numLineas = getNumCoverage(lineasCubiertas);
 	int numLineasTest = getCoberturaTestCase(lineasCubiertas,numLineas,id);
 	int posInicial = (numLineas-numLineasTest); 
 	while (posInicial < numLineas){
-		//lineasCubiertas[posInicial] = NULL;
-		free(lineasCubiertas[posInicial]);
+		lineasCubiertas[posInicial].id_test = 0;
+		lineasCubiertas[posInicial].id_file = 0;
+		lineasCubiertas[posInicial].line = 0;
+		//free(lineasCubiertas[posInicial]);
 		posInicial++;
 	}
 	
 }
-void backtracking(data * d,int solucion[],int * mejorSolucion,int n,int nivel,line_coverage ** lineasCubiertas,int numCoberturaTotal,
+void backtracking(data * d,int solucion[],int * mejorSolucion,int n,int nivel,line_coverage * lineasCubiertas,int numCoberturaTotal,
 		int * coberturas,int * mejoresCoberturas){
 
 	if (nivel == n-1){ //Caso en el que llegamos al ultimo nivel
