@@ -1,7 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "reader.h"
+#include <omp.h>
 #include "backtracking.h"
+
+#define NUM_THREADS 4
 
 int main(int argc, char **argv)
 {
@@ -9,9 +12,8 @@ int main(int argc, char **argv)
     printf("./main inputfile\n");
     return -1;
   }
-
-  char *input = argv[1];
   
+  char *input = argv[1];
   FILE *f = fopen(input, "r");
   data *d = read(f);
   //print_data(d);
@@ -24,7 +26,13 @@ int main(int argc, char **argv)
   int * mejoresCoberturas = (int *) malloc(sizeof(int) * d->num_cases); //Array donde se almacenan las coberturas de la mejor solucion actual
   //Array donde se almacenan las lineas cubiertas
   line_coverage * lineasCubiertas = (line_coverage *) malloc(sizeof(line_coverage) * d->num_coverage);
-  backtracking(d,solucion,mejorSolucion,d->num_cases,nivel,lineasCubiertas,numCoberturaTotal,coberturas,mejoresCoberturas);
+  omp_set_num_threads(NUM_THREADS);
+  #pragma omp parallel
+  #pragma omp single
+  {
+	backtracking(d,solucion,mejorSolucion,d->num_cases,nivel,lineasCubiertas,numCoberturaTotal,coberturas,mejoresCoberturas);
+  }
+  
   printf("Ordenacion óptima de los casos de prueba: \n");
   for (int i=0;i<d->num_cases;i++){
 	printf("%d ",mejorSolucion[i]);
