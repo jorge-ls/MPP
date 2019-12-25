@@ -21,14 +21,15 @@ int main(int argc, char **argv)
   int numCoberturaTotal = 0; //Variable para llevar el conteo de las lineas cubiertas; 
   //int * solucion = (int *) malloc(sizeof(int) * d->num_cases); 
   int solucion[d->num_cases]; //Array donde se almacena la solucion actual
-  int * mejorSolucion = (int *) malloc(sizeof(int) * d->num_cases); //Array donde se almacena la mejor solucion encontrada hasta el momento
+  //int * mejorSolucion = (int *) malloc(sizeof(int) * d->num_cases);
+  int * mejorSolucion[d->num_cases] //Array donde se almacena la mejor solucion encontrada hasta el momento
   int * coberturas = (int *) malloc(sizeof(int) * d->num_cases); //Array donde se almacena el total de lineas cubiertas por cada test
   int * mejoresCoberturas = (int *) malloc(sizeof(int) * d->num_cases); //Array donde se almacenan las coberturas de la mejor solucion actual
   //Array donde se almacenan las lineas cubiertas
   line_coverage * lineasCubiertas = (line_coverage *) malloc(sizeof(line_coverage) * d->num_coverage);
   omp_set_num_threads(NUM_THREADS);
   #pragma omp parallel
-  #pragma omp single
+  #pragma omp single nowait
   {
 	backtracking(d,solucion,mejorSolucion,d->num_cases,nivel,lineasCubiertas,numCoberturaTotal,coberturas,mejoresCoberturas);
   }
