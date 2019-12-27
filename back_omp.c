@@ -94,7 +94,12 @@ int addLineasCubiertas(data * d,line_coverage * lineasCubiertas,int id){
 	
 }
 
-
+void imprimirArray(int * array,int tam){
+	for (int i=0;i<tam;i++){
+		printf("%d ",array[i]);
+	}
+	printf("\n");
+}
 //Se crea una nueva tarea
 tarea * tarea_new(int nivel,int num_cases,int num_coverage) {
   tarea * t = (tarea *) malloc(sizeof(tarea));
@@ -145,14 +150,17 @@ void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * m
 		for (int i=0;i<n;i++){
 			if (valido(t->solucion,n,i+1)){
 				tarea * r = addTest(d,i+1,nivel,t);
-				#pragma omp critical
-				{
+				//#pragma omp critical
+				//{
 					if (isMejorSolucion(r->coberturas,mejoresCoberturas,n)){
 						escribirMejorSolucion(r->solucion,n,mejorSolucion);
 						escribirMejoresCoberturas(r->coberturas,n,mejoresCoberturas);
+						printf("Mejor solucion actual\n");
+						imprimirArray(mejorSolucion,n);
 					}
 					
-				}
+				//}
+				free(r);
 			}	
 		}
 	}
@@ -161,17 +169,19 @@ void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * m
 			if (valido(t->solucion,n,i+1)){
 				tarea * r = addTest(d,i+1,nivel,t); //Añade un nuevo test y se procesa en el arbol de busqueda
 				//if (r->coberturas[nivel] >= mejoresCoberturas[nivel]){ //Si la solucion actual no mejora a la mejor solucion encontrada hasta el momento se aplica poda
-					//if (nivel < n/2){
-						#pragma omp task firstprivate(r,nivel) shared(mejorSolucion,mejoresCoberturas)
+					if (nivel < 10){
+						#pragma omp task firstprivate(r,nivel,n)
 						{
 							backtracking(d,r,n,nivel+1,mejorSolucion,mejoresCoberturas);
 							free(r);
-						}	
-					//}
-					/*else{
-						backtracking(d,t,n,nivel+1,mejorSolucion,mejoresCoberturas);
-						free(t);
-					}*/
+						}
+						#pragma omp taskwait
+					}
+
+					else{
+						backtracking(d,r,n,nivel+1,mejorSolucion,mejoresCoberturas);
+						free(r);
+					}
 				//}
 					
 							
@@ -190,7 +200,7 @@ void main(int argc, char **argv)
   
   char *input = argv[1];
   FILE *f = fopen(input, "r");
-  data *d = read(f);
+  data *d = practica_reader(f);
   tarea * t = NULL;
   int nivel = 0; //nivel en el arbol
   int * mejorSolucion = (int *) malloc(sizeof(int) * d->num_cases);
@@ -198,13 +208,13 @@ void main(int argc, char **argv)
 
   omp_set_num_threads(NUM_THREADS);
 
-  #pragma omp parallel
+  #pragma omp parallel shared(mejorSolucion,mejoresCoberturas)
   {
   	#pragma omp single
   	{
   		t = tarea_new(nivel,d->num_cases,d->num_coverage);
+		//#pragma omp task
   		backtracking(d,t,d->num_cases,nivel,mejorSolucion,mejoresCoberturas);
-		#pragma omp taskwait
   		printf("Ordenacion óptima de los casos de prueba: \n");
   		for (int i=0;i<d->num_cases;i++){
 			printf("%d ",mejorSolucion[i]);
@@ -218,5 +228,6 @@ void main(int argc, char **argv)
   		free(t);
   		//return 0;
   	}
+
   }
 }

@@ -172,7 +172,7 @@ int main(int argc, char **argv)
   
   char *input = argv[1];
   FILE *f = fopen(input, "r");
-  data *d = read(f);
+  data *d = practica_reader(f);
   //print_data(d);
   tarea * t = NULL;
   int nivel = 0; //nivel en el arbol

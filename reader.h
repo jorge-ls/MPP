@@ -47,7 +47,7 @@ int get_num_coverage_elements(data *d);
 
 
 /* Read / write */
-data * read(FILE *f);
+data * practica_reader(FILE *f);
 
 void print_data(data *d);
 

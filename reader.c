@@ -59,7 +59,7 @@ void free_data(data *d)
   }
 }
 
-data * read(FILE *f)
+data * practica_reader(FILE *f)
 {
   int num_test_cases;
   int num_files;

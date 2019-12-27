@@ -3,14 +3,13 @@
 #include "reader.h"
 #include <string.h>
 #include <mpi.h>
-#include "lib/vector.h"
+#include "vector.h"
 
 typedef struct {
   int nivel;
-  int ultima;
+  int coberturaTotal;
   int * solucion; 
   int * coberturas;
-  int coberturaTotal;
   line_coverage * lineasCubiertas;
 } tarea;
  
@@ -99,7 +98,6 @@ int addLineasCubiertas(data * d,line_coverage * lineasCubiertas,int id){
 tarea * tarea_new(int nivel,int num_cases,int num_coverage) {
   tarea * t = (tarea *) malloc(sizeof(tarea));
   t->nivel = nivel;
-  t->ultima = 0;
   t->coberturaTotal = 0;
   t->solucion = (int *) malloc(sizeof(int) * num_cases);
   t->coberturas = (int *) malloc(sizeof(int) * num_cases);
@@ -146,7 +144,7 @@ tarea * addTest(data * d,int idTest,int nivel,tarea * actual)
 				tarea * r = addTest(d,i+1,i,t);
 				
 			}
-		}*/
+		}
 
 	}
 }*/
@@ -171,7 +169,6 @@ void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * m
 				if (isMejorSolucion(r->coberturas,mejoresCoberturas,n)){
 					escribirMejorSolucion(r->solucion,n,mejorSolucion);
 					escribirMejoresCoberturas(r->coberturas,n,mejoresCoberturas);
-					//MPI_Send(r,1,tarea_type,0,20,MPI_COMM_WORLD);
 				}
 				free(r);
 			}	
@@ -190,7 +187,30 @@ void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * m
 	}
 }
 
+void printTarea(tarea * t,int tamSolucion,int tamCoverage){
+	printf("Nivel: %d\n",t->nivel);
+	printf("Cobertura total: %d\n",t->coberturaTotal);
+	printf("Solucion:\n");
+	for (int i=0;i<tamSolucion;i++){
+		printf("%d ",t->solucion[i]);
+	}
+	printf("\n");
+	printf("Coberturas:\n");
+	for (int j=0;j<tamSolucion;j++){
+		printf("%d ",t->coberturas[j]);
+	}
+	printf("\n");
+	printf("Lineas cubiertas:\n");
+	for (int k=0;k<tamCoverage;k++){
+		printf("coverage %d\n",k);
+		printf("Line:%d\n",t->lineasCubiertas[k].line);
+		printf("Id_test:%d\n",t->lineasCubiertas[k].id_test);
+		printf("Id_file:%d\n",t->lineasCubiertas[k].id_file);
+	}
+	printf("\n");
+	
 
+}
 
 int main(int argc, char **argv)
 {
@@ -208,13 +228,33 @@ int main(int argc, char **argv)
   
   char *input = argv[1];
   FILE *f = fopen(input, "r");
-  data *d = read(f);
+  data *d = practica_reader(f);
+
+  //Se crea el tipo de datos
+
+  MPI_Datatype lineCoverage_type;
+  MPI_Datatype tarea_type;
+
+  MPI_Datatype type[3] = { MPI_INT, MPI_INT, MPI_INT };
+  int blocklen[3] = { 1, 1, 1 };
+  //MPI_Aint addresses[3];
+  //MPI_Aint disp[3];
+
+  const MPI_Aint displacements[3] = {0, sizeof(int), sizeof(int) + sizeof(int)};
+  MPI_Type_create_struct(3,blocklen, displacements, type, &lineCoverage_type);
+  MPI_Type_commit(&lineCoverage_type);
+
+  MPI_Datatype types[5] = {MPI_INT,MPI_INT,MPI_INT,MPI_INT,lineCoverage_type};
+  int blocklen2[5] = {1,1,d->num_cases,d->num_cases,d->num_coverage};
+  const MPI_Aint disp[5] = {0,sizeof(int),sizeof(int)*2,sizeof(int)*2+sizeof(int)*d->num_cases,sizeof(int)*2+sizeof(int)*d->num_cases*2};
+  MPI_Type_create_struct(5,blocklen2, disp, types, &tarea_type);
+  MPI_Type_commit(&tarea_type);
+  
+
   //print_data(d);
   tarea * t = NULL;
-  int terminado = 0;
-  int maxTareas,auxNivel = d->num_cases;
-  int count = 1;
-  tarea * tareas;
+  //int maxTareas,auxNivel = d->num_cases;
+  int fin = 0;
   int nivel = 0; //nivel en el arbol
   int * mejorSolucion = (int *) malloc(sizeof(int) * d->num_cases);
   int * mejoresCoberturas = (int *) malloc(sizeof(int) * d->num_cases); 
@@ -230,67 +270,92 @@ int main(int argc, char **argv)
 		}
 		i++;
 	}*/
-	//tareas = (tarea *) malloc(sizeof(tarea) * maxTareas);
 	Vector *bolsa = vector_new();
-    	Vector *soluciones = vector_new();
+	int * solucionActual = (int *) malloc(sizeof(int) * d->num_cases);
+	int * coberturasActual = (int *) malloc(sizeof(int) * d->num_cases);  
 	//Se generan las tareas
+	int maxTareas = d->num_cases;
 	for (int i=0;i<maxTareas;i++){
 		tarea * t = tarea_new(nivel,d->num_cases,d->num_coverage);
 		tarea * r = addTest(d,i+1,nivel,t);
 		r->nivel++;
 		append(bolsa, r);
-		//tareas[index] = *r;
-		//index++;
+		free(t);
+		free(r);
 		
 	}
 	int ocupados = 0;
-	while (!is_empty(bolsa)){
-		// Enviar trabajos
+	while (!fin){
+		// Enviar tareas a cada proceso esclavo
       		for(int i = 1; i < procs; i++) {
 			if (!is_empty(bolsa)) {
+				printf("Before enviar\n");
 	  			tarea * actual = (tarea *) pop(bolsa);
 	  			MPI_Send(actual, 1, tarea_type, i, 0, MPI_COMM_WORLD);
+				printf("Maestro envia tarea al proceso esclavo %d\n",i);
 	  			ocupados++;
  				free(actual);
 			}
       		}
 		while (ocupados > 0){
-			MPI_Recv(&actual, 1, tarea_type, 0, 20, MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-			//ocupados--;
+			MPI_Recv(solucionActual,d->num_cases,MPI_INT, MPI_ANY_SOURCE, 20, MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+			MPI_Recv(coberturasActual,d->num_cases,MPI_INT, MPI_ANY_SOURCE, 10, MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+			if (isMejorSolucion(coberturasActual,mejoresCoberturas,d->num_cases)){
+				escribirMejorSolucion(solucionActual,d->num_cases,mejorSolucion);
+				escribirMejoresCoberturas(coberturasActual,d->num_cases,mejoresCoberturas);
+			}
+			ocupados--; //Si se recibe una solucion es porque el proceso esclavo ya ha terminado
+			if (ocupados == 0 && is_empty(bolsa)){
+				fin = 1;
+			}
+			//append(soluciones,r);
+			
 		}
 
 	}
-  }
-  else{ //procesos esclavos
-	while(true){
-		MPI_Request request;
-		MPI_Status status;
-		MPI_Send(actual, 1, tarea_type, i, 0, MPI_COMM_WORLD);
-      		tarea actual;
-      		MPI_Recv(&actual, 1, tarea_type, 0, 0, MPI_COMM_WORLD, &status);
-		backtracking(d,actual,d->num_cases,actual->nivel,mejorSolucion,mejoresCoberturas);
-		//terminado = 1;
-		//MPI_ISend(terminado, 1,MPI_INT, 0, 10, MPI_COMM_WORLD);
-		//MPI_Wait(&request,&status);
-	} 
-  }
-  //t = tarea_new(nivel,d->num_cases,d->num_coverage);
-  //backtracking(d,t,d->num_cases,nivel,mejorSolucion,mejoresCoberturas);
-
-  if (rank == 0){
+	//Si se han procesado todas las soluciones se envia una marca de fin a cada esclavo para que terminen su ejecucion
+	for(int i = 1; i < procs; i++) {
+		tarea marca_fin;
+		marca_fin.nivel = -1;
+		MPI_Send(&marca_fin, 1, tarea_type, i, 0, MPI_COMM_WORLD);
+		printf("Proceso maestro envia marca de fin al proceso esclavo %d\n",i);
+	}
+	
 	printf("Ordenacion óptima de los casos de prueba: \n");
   	for (int i=0;i<d->num_cases;i++){
 		printf("%d ",mejorSolucion[i]);
   	}
   	printf("\n");
+	free(solucionActual);
+	free(coberturasActual);
+	
+  }
+  else{ //procesos esclavos
+	//printf("Proceso %d\n",rank);
+	while(true){
+		printf("Proceso %d\n",rank);
+		MPI_Request request;
+		MPI_Status status;
+      		tarea actual;
+		printf("Proceso %d entra en el bucle",rank);
+      		MPI_Recv(&actual, 1, tarea_type, 0, 0, MPI_COMM_WORLD, &status);
+		printTarea(&actual,d->num_cases,d->num_coverage);
+		if (actual.nivel == -1){
+			break;
+		}
+		printf("Proceso %d recibe los datos correctamente\n",rank);
+		backtracking(d,&actual,d->num_cases,actual.nivel,mejorSolucion,mejoresCoberturas);
+		printf("Proceso %d termina backtracking\n",rank);
+		MPI_Send(mejorSolucion,d->num_cases,MPI_INT,0,20,MPI_COMM_WORLD);
+		MPI_Send(mejoresCoberturas,d->num_cases,MPI_INT,0,10,MPI_COMM_WORLD);
+		printf("Proceso %d envia la mejor solucion encontrada al maestro\n",rank);
+		
+	} 
   }
   
   free(mejorSolucion);
   free(mejoresCoberturas);
-  free(t->solucion);
-  free(t->coberturas);
-  free(t->lineasCubiertas);
-  free(t);
+  
 
   MPI_Finalize();
   return 0;
