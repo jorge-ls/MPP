@@ -1,12 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <omp.h>
 #include "reader.h"
 #include <string.h>
-#include <omp.h>
-#include "vector.h"
 
 #define NUM_THREADS 4
-
 
 typedef struct {
   int nivel;
@@ -45,14 +43,14 @@ int getNumCoverage(line_coverage * lineasCubiertas){
 }
 
 //Funcion para escribir la mejor solucion encontrada hasta el momento
-void escribirMejorSolucion(int * solucion,int n,int * mejorSolucion){
+void escribirMejorSolucion(int * solucion,int n,int mejorSolucion[]){
 	for (int i=0;i<n;i++){
 		mejorSolucion[i] = solucion[i];
 	}
 }
 
 //Funcion para guardar las coberturas de la mejor solucion encontrada hasta el momento
-void escribirMejoresCoberturas(int * coberturas,int n,int * mejoresCoberturas){
+void escribirMejoresCoberturas(int * coberturas,int n,int mejoresCoberturas[]){
 	for (int i=0;i<n;i++){
 		mejoresCoberturas[i] = coberturas[i];
 	}
@@ -96,7 +94,12 @@ int addLineasCubiertas(data * d,line_coverage * lineasCubiertas,int id){
 	
 }
 
-
+void imprimirArray(int * array,int tam){
+	for (int i=0;i<tam;i++){
+		printf("%d ",array[i]);
+	}
+	printf("\n");
+}
 //Se crea una nueva tarea
 tarea * tarea_new(int nivel,int num_cases,int num_coverage) {
   tarea * t = (tarea *) malloc(sizeof(tarea));
@@ -147,13 +150,17 @@ void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * m
 		for (int i=0;i<n;i++){
 			if (valido(t->solucion,n,i+1)){
 				tarea * r = addTest(d,i+1,nivel,t);
-				#pragma omp critical (solucion)
-				{
-				if (isMejorSolucion(r->coberturas,mejoresCoberturas,n)){
-					escribirMejorSolucion(r->solucion,n,mejorSolucion);
-					escribirMejoresCoberturas(r->coberturas,n,mejoresCoberturas);
-				}
-				}
+				//#pragma omp critical
+				//{
+					if (isMejorSolucion(r->coberturas,mejoresCoberturas,n)){
+						escribirMejorSolucion(r->solucion,n,mejorSolucion);
+						escribirMejoresCoberturas(r->coberturas,n,mejoresCoberturas);
+						printf("Mejor solucion actual\n");
+						imprimirArray(mejorSolucion,n);
+					}
+					
+				//}
+				free(r);
 			}	
 		}
 	}
@@ -162,95 +169,65 @@ void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * m
 			if (valido(t->solucion,n,i+1)){
 				tarea * r = addTest(d,i+1,nivel,t); //Añade un nuevo test y se procesa en el arbol de busqueda
 				//if (r->coberturas[nivel] >= mejoresCoberturas[nivel]){ //Si la solucion actual no mejora a la mejor solucion encontrada hasta el momento se aplica poda
-					backtracking(d,r,n,nivel+1,mejorSolucion,mejoresCoberturas);
-					free(r);
-				//}		
+					if (nivel < 10){
+						#pragma omp task firstprivate(r,nivel,n)
+						{
+							backtracking(d,r,n,nivel+1,mejorSolucion,mejoresCoberturas);
+							free(r);
+						}
+						#pragma omp taskwait
+					}
+
+					else{
+						backtracking(d,r,n,nivel+1,mejorSolucion,mejoresCoberturas);
+						free(r);
+					}
+				//}
+					
+							
 			}
 		}
 	}
 }
 
-void printTarea(tarea * t,int tamSolucion,int tamCoverage){
-	printf("Nivel: %d\n",t->nivel);
-	printf("Cobertura total: %d\n",t->coberturaTotal);
-	printf("Solucion:\n");
-	for (int i=0;i<tamSolucion;i++){
-		printf("%d ",t->solucion[i]);
-	}
-	printf("\n");
-	printf("Coberturas:\n");
-	for (int j=0;j<tamSolucion;j++){
-		printf("%d ",t->coberturas[j]);
-	}
-	printf("\n");
-	printf("Lineas cubiertas:\n");
-	for (int k=0;k<tamCoverage;k++){
-		printf("coverage %d\n",k);
-		printf("Line:%d\n",t->lineasCubiertas[k].line);
-		printf("Id_test:%d\n",t->lineasCubiertas[k].id_test);
-		printf("Id_file:%d\n",t->lineasCubiertas[k].id_file);
-	}
-	printf("\n");
-}
 
-
-int main(int argc, char **argv)
+void main(int argc, char **argv)
 {
-  if (argc != 2) {
+  /*if (argc != 2) {
     printf("./main inputfile\n");
     return -1;
-  }
+  }*/
   
   char *input = argv[1];
   FILE *f = fopen(input, "r");
   data *d = practica_reader(f);
-  double inicio,fin=0;
-  //print_data(d);
   tarea * t = NULL;
   int nivel = 0; //nivel en el arbol
-  int maxTareas = d->num_cases;
   int * mejorSolucion = (int *) malloc(sizeof(int) * d->num_cases);
-  int * mejoresCoberturas = (int *) malloc(sizeof(int) * d->num_cases); 
-  tarea * tareas = (tarea *) malloc(sizeof(tarea) * maxTareas);
+  int * mejoresCoberturas = (int *) malloc(sizeof(int) * d->num_cases);
+
   omp_set_num_threads(NUM_THREADS);
-  
-  //Se generan las tareas a repartir entre los hilos
-  for (int i=0;i<maxTareas;i++){
-	tarea * t = tarea_new(nivel,d->num_cases,d->num_coverage);
-	tarea * r = addTest(d,i+1,nivel,t);
-	r->nivel++;
-	//append(bolsa, r);
-	tareas[i] = *r;
-	//printTarea(&tareas[i],d->num_cases,d->num_coverage);
-	free(t);
-	free(r);
-		
-  }
-  inicio = omp_get_wtime();
-  #pragma omp parallel shared(tareas,mejorSolucion,mejoresCoberturas)
+
+  #pragma omp parallel shared(mejorSolucion,mejoresCoberturas)
   {
-	#pragma omp for 
-	for (int i=0;i<maxTareas;i++){
-		//printTarea(tareas[i],d->num_cases,d->num_coverage);
-		backtracking(d,&tareas[i],d->num_cases,tareas[i].nivel,mejorSolucion,mejoresCoberturas);
-	}
-			
-		
+  	#pragma omp single
+  	{
+  		t = tarea_new(nivel,d->num_cases,d->num_coverage);
+		//#pragma omp task
+  		backtracking(d,t,d->num_cases,nivel,mejorSolucion,mejoresCoberturas);
+  		printf("Ordenacion óptima de los casos de prueba: \n");
+  		for (int i=0;i<d->num_cases;i++){
+			printf("%d ",mejorSolucion[i]);
+  		}
+  		printf("\n");
+  		free(mejorSolucion);
+  		free(mejoresCoberturas);
+  		free(t->solucion);
+  		free(t->coberturas);
+  		free(t->lineasCubiertas);
+  		free(t);
+  		//return 0;
+  	}
+
   }
-  printf("Ordenacion óptima de los casos de prueba: \n");
-  for (int i=0;i<d->num_cases;i++){
-	printf("%d ",mejorSolucion[i]);
-  }
-  printf("\n");
-  fin = omp_get_wtime();
-  printf("Tiempo de ejecucion: %2.4f segundos\n",fin-inicio);
-  free(mejorSolucion);
-  free(mejoresCoberturas);
-  free(tareas);
-  /*free(t->solucion);
-  free(t->coberturas);
-  free(t->lineasCubiertas);
-  free(t);*/
-  return 0;
-  
 }
