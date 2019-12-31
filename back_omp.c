@@ -161,7 +161,7 @@ void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * m
 		for (int i=0;i<n;i++){
 			if (valido(t->solucion,n,i+1)){
 				tarea * r = addTest(d,i+1,nivel,t); //Añade un nuevo test y se procesa en el arbol de busqueda
-				//if (r->coberturas[nivel] >= mejoresCoberturas[nivel]){ //Si la solucion actual no mejora a la mejor solucion encontrada hasta el momento se aplica poda
+				//if (r->coberturas[nivel] >= mejoresCoberturas[nivel]){
 					backtracking(d,r,n,nivel+1,mejorSolucion,mejoresCoberturas);
 					free(r);
 				//}		
@@ -207,8 +207,11 @@ void generarTareas(Vector * bolsa,data * d,tarea * t,tarea * tareas,int maxNivel
 		for (int i=0;i<n;i++){
 			if (valido(t->solucion,n,i+1)){
 				tarea * r = addTest(d,i+1,nivelActual,t);
-				generarTareas(bolsa,d,r,tareas,maxNivel,nivelActual+1,n);
-				free(r);
+				//#pragma omp task firstprivate(r)
+				{
+					generarTareas(bolsa,d,r,tareas,maxNivel,nivelActual+1,n);
+					free(r);
+				}
 			}
 		}
 	}
@@ -261,8 +264,15 @@ int main(int argc, char **argv)
 	free(r);
 		
   }*/
-  t = tarea_new(nivel,d->num_cases,d->num_coverage);
-  generarTareas(bolsa,d,t,tareas,maxNivel,nivel,d->num_cases);
+  //#pragma omp parallel
+  //{
+	//#pragma omp single
+	//{
+  		t = tarea_new(nivel,d->num_cases,d->num_coverage);
+  		generarTareas(bolsa,d,t,tareas,maxNivel,nivel,d->num_cases);
+	//}
+  //}
+  //while (size(bolsa) != maxTareas){};
   printf("El numero de elementos de la bolsa es: %d\n",size(bolsa));
   for (int i=0;i<maxTareas;i++){
 	tarea * actual = (tarea *) pop(bolsa);
