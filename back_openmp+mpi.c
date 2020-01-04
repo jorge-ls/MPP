@@ -3,7 +3,9 @@
 #include "reader.h"
 #include <string.h>
 #include <mpi.h>
+#include <omp.h>
 #include "vector.h"
+
 
 typedef struct {
   int nivel;
@@ -144,9 +146,12 @@ void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * m
 		for (int i=0;i<n;i++){
 			if (valido(t->solucion,n,i+1)){
 				tarea * r = addTest(d,i+1,nivel,t);
+				#pragma omp critical
+				{
 				if (isMejorSolucion(r->coberturas,mejoresCoberturas,n)){
 					escribirMejorSolucion(r->solucion,n,mejorSolucion);
 					escribirMejoresCoberturas(r->coberturas,n,mejoresCoberturas);
+				}
 				}
 				free(r);
 			}	
@@ -203,10 +208,10 @@ void generarTareas(Vector * bolsa,data * d,tarea * t,int maxNivel,int nivelActua
 		for (int i=0;i<n;i++){
 			if (valido(t->solucion,n,i+1)){
 				tarea * r = addTest(d,i+1,nivelActual,t);
-				{
+				//{
 					generarTareas(bolsa,d,r,maxNivel,nivelActual+1,n);
 					free(r);
-				}
+				//}
 			}
 		}
 	}
@@ -259,6 +264,8 @@ int main(int argc, char **argv)
   //int maxTareas,auxNivel = d->num_cases;
   int fin = 0;
   int position =0;
+  int NUM_THREADS = 4;
+  omp_set_num_threads(NUM_THREADS);
   double start,end = 0;
   int nivel = 0; //nivel en el arbol
   int * mejorSolucion = (int *) malloc(sizeof(int) * d->num_cases);
@@ -289,7 +296,7 @@ int main(int argc, char **argv)
 		maxNivel++;
 	}
 	Vector *bolsa = vector_new_with_capacity(maxTareas);
-	printf("El numero maximo de tareas generadas es %d\n",maxTareas);
+	printf("El numero maximo de tareas generadas por el proceso maestro es %d\n",maxTareas);
 	start = MPI_Wtime();
 	t = tarea_new(nivel,d->num_cases,d->num_coverage);
   	generarTareas(bolsa,d,t,maxNivel,nivel,d->num_cases);
@@ -308,7 +315,6 @@ int main(int argc, char **argv)
 				MPI_Pack(&actual->coberturaTotal,1,MPI_INT,buffer,sizeBuffer,&position,MPI_COMM_WORLD);
 				MPI_Pack(actual->solucion,d->num_cases,MPI_INT,buffer,sizeBuffer,&position,MPI_COMM_WORLD);
 				MPI_Pack(actual->coberturas,d->num_cases,MPI_INT,buffer,sizeBuffer,&position,MPI_COMM_WORLD);
-				printf("Proceso maestro envia tarea a proceso %d\n",i);
 				MPI_Pack(actual->lineasCubiertas,d->num_coverage,lineCoverage_type,buffer,sizeBuffer,&position,MPI_COMM_WORLD);
 				MPI_Send(buffer, sizeBuffer,MPI_PACKED, i, 0, MPI_COMM_WORLD);
 				free(buffer);
@@ -356,7 +362,6 @@ int main(int argc, char **argv)
 		MPI_Pack(marca_fin->solucion,d->num_cases,MPI_INT,buffer,sizeBuffer,&position,MPI_COMM_WORLD);
 		MPI_Pack(marca_fin->coberturas,d->num_cases,MPI_INT,buffer,sizeBuffer,&position,MPI_COMM_WORLD);
 		MPI_Pack(marca_fin->lineasCubiertas,d->num_coverage,lineCoverage_type,buffer,sizeBuffer,&position,MPI_COMM_WORLD);
-		printf("Proceso maestro envia marca de fin a proceso %d\n",i);
 		MPI_Send(buffer, sizeBuffer,MPI_PACKED, i, 0, MPI_COMM_WORLD);
 		free(buffer);
 		free(marca_fin);
@@ -372,13 +377,16 @@ int main(int argc, char **argv)
 		//printf("Proceso %d\n",rank);
 		MPI_Request request;
 		MPI_Status status;
+		int nivelesRestantes = 0;
+		int maxNivelLocal = 0;
+		int maxTareasLocal = 0;
+		Vector * bolsa_local;
       		tarea * actual = tarea_new(0,d->num_cases,d->num_coverage);
 		position = 0;
 		//printf("Proceso %d entra en el bucle\n",rank);
 		//MPI_Recv(actual,1,tarea_type, 0, 0, MPI_COMM_WORLD, &status);
 		buffer = (char *) malloc(sizeof(char) * sizeBuffer);
 		MPI_Recv(buffer, sizeBuffer,MPI_PACKED, 0, 0, MPI_COMM_WORLD,&status);
-		printf("Proceso %d recibe tarea del proceso maestro\n",rank);
 		MPI_Unpack(buffer,sizeBuffer,&position,&actual->nivel,1,MPI_INT,MPI_COMM_WORLD);
 		MPI_Unpack(buffer,sizeBuffer,&position,&actual->coberturaTotal,1,MPI_INT,MPI_COMM_WORLD);
 		MPI_Unpack(buffer,sizeBuffer,&position,actual->solucion,d->num_cases,MPI_INT,MPI_COMM_WORLD);
@@ -387,10 +395,50 @@ int main(int argc, char **argv)
 		free(buffer);
 		//printTarea(actual,d->num_cases,d->num_coverage);
 		if (actual->nivel == -1){
-			printf("El proceso %d termina su ejecucion\n",rank);
+			//printf("El proceso %d termina su ejecucion\n",rank);
 			break;
 		}
-		backtracking(d,actual,d->num_cases,actual->nivel,mejorSolucion,mejoresCoberturas);
+		////Parte openMP+MPI////
+		nivelesRestantes = d->num_cases - (actual->nivel);
+		if (nivelesRestantes < 5){ //Si quedan pocos niveles por explorar el proceso lo hace en secuencial
+			backtracking(d,actual,d->num_cases,actual->nivel,mejorSolucion,mejoresCoberturas);	
+		}
+		else{ //En caso contrario, el proceso crea varios hilos para terminar de explorar los niveles restantes
+			maxNivelLocal = actual->nivel;
+			maxTareasLocal = d->num_cases - (actual->nivel);
+			maxNivelLocal++;
+			/*for (int i=actual->nivel+1;i<maxNivelLocal;i++){
+				maxTareasLocal = maxTareasLocal * (d->num_cases - i);
+			}*/
+			int numThreads = omp_get_num_threads();
+			while (maxTareasLocal < numThreads){
+				maxTareasLocal = maxTareasLocal * (d->num_cases - maxNivelLocal);
+				maxNivelLocal++;
+			}
+			//printf("El nivel actual es %d\n",actual->nivel);
+			//printf("El nivel hasta el que se generan tareas es %d\n",maxNivelLocal);
+			//printf("El numero de niveles restantes es %d\n",nivelesRestantes);
+			printf("El numero de tareas generadas por el proceso %d es %d\n",rank,maxTareasLocal);
+			bolsa_local = vector_new_with_capacity(maxTareasLocal);
+			tarea * tareas_local = (tarea *) malloc(sizeof(tarea) * maxTareasLocal);
+			generarTareas(bolsa_local,d,actual,maxNivelLocal,actual->nivel,d->num_cases);
+			//printf("Proceso %d:El numero de elementos de la bolsa es: %d\n",rank,size(bolsa_local));
+  			for (int i=0;i<maxTareasLocal;i++){
+				tarea * actual_local = (tarea *) pop(bolsa_local);
+				tareas_local[i] = *actual_local;
+  			}
+	
+			#pragma omp parallel shared(tareas_local,mejorSolucion,mejoresCoberturas)
+  			{
+				#pragma omp for 
+				for (int i=0;i<maxTareasLocal;i++){
+					//printTarea(tareas[i],d->num_cases,d->num_coverage);
+					backtracking(d,&tareas_local[i],d->num_cases,tareas_local[i].nivel,mejorSolucion,mejoresCoberturas);
+				}
+					
+  			}
+			//backtracking(d,actual,d->num_cases,actual->nivel,mejorSolucion,mejoresCoberturas);
+		}
 		//Los procesos esclavos envian la mejor solucion encontrada al maestro
 		position = 0; 
 		//MPI_Send(mejorSolucion,d->num_cases,MPI_INT,0,20,MPI_COMM_WORLD);
@@ -399,7 +447,6 @@ int main(int argc, char **argv)
 		MPI_Pack(mejorSolucion,d->num_cases,MPI_INT,bufferSolucion,sizeSolucion,&position,MPI_COMM_WORLD);
 		MPI_Pack(mejoresCoberturas,d->num_cases,MPI_INT,bufferSolucion,sizeSolucion,&position,MPI_COMM_WORLD);
 		MPI_Send(bufferSolucion,sizeSolucion,MPI_PACKED, 0, 10, MPI_COMM_WORLD);
-		printf("Proceso %d envia solucion al proceso maestro\n",rank);
 		free(bufferSolucion);
 		free(actual);
 		

@@ -193,7 +193,7 @@ void printTarea(tarea * t,int tamSolucion,int tamCoverage){
 	printf("\n");
 }
 
-void generarTareas(Vector * bolsa,data * d,tarea * t,tarea * tareas,int maxNivel,int nivelActual,int n){
+void generarTareas(Vector * bolsa,data * d,tarea * t,int maxNivel,int nivelActual,int n){
 	if (nivelActual == maxNivel - 1){
 		for (int i=0;i<n;i++){
 			if (valido(t->solucion,n,i+1)){
@@ -208,10 +208,10 @@ void generarTareas(Vector * bolsa,data * d,tarea * t,tarea * tareas,int maxNivel
 			if (valido(t->solucion,n,i+1)){
 				tarea * r = addTest(d,i+1,nivelActual,t);
 				//#pragma omp task firstprivate(r)
-				{
-					generarTareas(bolsa,d,r,tareas,maxNivel,nivelActual+1,n);
+				//{
+					generarTareas(bolsa,d,r,maxNivel,nivelActual+1,n);
 					free(r);
-				}
+				//}
 			}
 		}
 	}
@@ -236,49 +236,47 @@ int main(int argc, char **argv)
   int maxTareas = d->num_cases;
   int * mejorSolucion = (int *) malloc(sizeof(int) * d->num_cases);
   int * mejoresCoberturas = (int *) malloc(sizeof(int) * d->num_cases); 
-  
-  omp_set_num_threads(NUM_THREADS);
-  int maxNivel = d->num_cases/4; //Nivel hasta el que se generan tareas
+  int maxNivel = 1;
+  //omp_set_num_threads(NUM_THREADS);
   if (d->num_cases < 4){//Si el problema es muy pequeño se hace secuencial
 	t = tarea_new(nivel,d->num_cases,d->num_coverage);
-	 backtracking(d,t,d->num_cases,nivel,mejorSolucion,mejoresCoberturas);
+	backtracking(d,t,d->num_cases,nivel,mejorSolucion,mejoresCoberturas);
   }
   else{
   //Se generan las tareas a repartir entre los hilos
 
-  for (int j=1;j<maxNivel;j++){
+  /*for (int j=1;j<maxNivel;j++){
 	maxTareas = maxTareas * (d->num_cases - j);
 	printf("Max tareas %d\n",maxTareas);
+  }*/
+  int numHilos = omp_get_num_threads();
+  printf("El numero de hilos es %d\n",numHilos);
+  while (maxTareas < numHilos){
+	maxTareas = maxTareas * (d->num_cases - maxNivel);
+	maxNivel++;
   }
   Vector *bolsa = vector_new_with_capacity(maxTareas);
   tarea * tareas = (tarea *) malloc(sizeof(tarea) * maxTareas);
   printf("El numero maximo de tareas generadas es %d\n",maxTareas);
-  /*for (int i=0;i<maxTareas;i++){
-	tarea * t = tarea_new(nivel,d->num_cases,d->num_coverage);
-	tarea * r = addTest(d,i+1,nivel,t);
-	r->nivel++;
-	//append(bolsa, r);
-	tareas[i] = *r;
-	//printTarea(&tareas[i],d->num_cases,d->num_coverage);
-	free(t);
-	free(r);
-		
-  }*/
-  //#pragma omp parallel
+  inicio = omp_get_wtime();
+  //#pragma omp parallel shared(bolsa,maxTareas)
   //{
 	//#pragma omp single
 	//{
   		t = tarea_new(nivel,d->num_cases,d->num_coverage);
-  		generarTareas(bolsa,d,t,tareas,maxNivel,nivel,d->num_cases);
+		//#pragma omp taskgroup
+		//{
+			//#pragma omp task firstprivate(t)
+  			generarTareas(bolsa,d,t,maxNivel,nivel,d->num_cases);
+		//}
 	//}
   //}
-  //while (size(bolsa) != maxTareas){};
   printf("El numero de elementos de la bolsa es: %d\n",size(bolsa));
   for (int i=0;i<maxTareas;i++){
 	tarea * actual = (tarea *) pop(bolsa);
 	tareas[i] = *actual;
   }
-  inicio = omp_get_wtime();
+  
   #pragma omp parallel shared(tareas,mejorSolucion,mejoresCoberturas)
   {
 	#pragma omp for 
