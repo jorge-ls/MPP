@@ -137,6 +137,30 @@ int isMejorSolucion(int * coberturas,int * mejoresCoberturas,int n){
 	return mejorSolucion;
 }
 
+void printTarea(tarea * t,int tamSolucion,int tamCoverage){
+	printf("Nivel: %d\n",t->nivel);
+	printf("Cobertura total: %d\n",t->coberturaTotal);
+	printf("Solucion:\n");
+	for (int i=0;i<tamSolucion;i++){
+		printf("%d ",t->solucion[i]);
+	}
+	printf("\n");
+	printf("Coberturas:\n");
+	for (int j=0;j<tamSolucion;j++){
+		printf("%d ",t->coberturas[j]);
+	}
+	printf("\n");
+	printf("Lineas cubiertas:\n");
+	for (int k=0;t->lineasCubiertas[k].id_test!=0;k++){
+		//printf("coverage %d\n",k);
+		printf("Line:%d ",t->lineasCubiertas[k].line);
+		printf("Id_test:%d ",t->lineasCubiertas[k].id_test);
+		printf("Id_file:%d\n",t->lineasCubiertas[k].id_file);
+	}
+	printf("\n");
+	
+}
+
 void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * mejoresCoberturas){
 
 	if (nivel == n-1){ //Caso en el que llegamos al ultimo nivel
@@ -147,6 +171,7 @@ void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * m
 					escribirMejorSolucion(r->solucion,n,mejorSolucion);
 					escribirMejoresCoberturas(r->coberturas,n,mejoresCoberturas);
 				}
+				free(r);
 			}	
 		}
 	}
