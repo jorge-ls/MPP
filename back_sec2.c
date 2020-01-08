@@ -6,10 +6,10 @@
 
 typedef struct {
   int nivel;
+  int coberturaTotal;
   int * solucion; 
   int * coberturas;
-  int coberturaTotal;
-  line_coverage * lineasCubiertas;
+  int * isCubierta;
 } tarea;
  
 
@@ -22,23 +22,6 @@ int valido(int * solucion,int n,int i){
 	return 1;
 }
 
-//Comprueba si una linea de un fichero ya ha sido cubierta por un caso de prueba
-int isCubierta(line_coverage linea,line_coverage * lineasCubiertas,int numLineas){
-	for (int i=0;i<numLineas;i++){
-		if ((lineasCubiertas[i].id_file == linea.id_file) && (lineasCubiertas[i].line == linea.line)){
-			return 1;
-		}
-	}
-	return 0;
-}
-//Función para obtener el número actual de entradas de cobertura procesadas 
-int getNumCoverage(line_coverage * lineasCubiertas){
-	int i = 0;
-	while (lineasCubiertas[i].id_test != 0){
-		i++;
-	}
-	return i;
-}
 
 //Funcion para escribir la mejor solucion encontrada hasta el momento
 void escribirMejorSolucion(int * solucion,int n,int * mejorSolucion){
@@ -55,43 +38,30 @@ void escribirMejoresCoberturas(int * coberturas,int n,int * mejoresCoberturas){
 }
 
 
-//Obtiene el número de lineas cubiertas por un caso de prueba
-int getCoberturaTestCase(line_coverage * lineasCubiertas,int numLineas,int id){
-	int numTest = 0;
-	for (int i=0;i<numLineas;i++){
-		if (lineasCubiertas[i].id_test == id){
-			numTest++;
-		}
-	}
-	return numTest;
-}
 
 
-// Añade las lineas de ficheros cubiertas por el caso de prueba "id" a la lista de lineas cubiertas y devuelve el numero de lineas cubiertas
-// por ese caso de prueba
-int addLineasCubiertas(data * d,line_coverage * lineasCubiertas,int id){
-	int numLineasTest = 0;
+//Funcion para obtener la cobertura de lineas de un test
+int getCoberturaTest(tarea * r,data * d,int idTest){
+	int cubierta;
 	int numCobertura = 0;
-	int j = 0;
-	int numLineas = getNumCoverage(lineasCubiertas);
-	line_coverage * lineasTest = get_coverage_testCase(d,id,&numLineasTest);
-	for (int i=0;i<numLineasTest;i++){
-		if (numLineas > 0){
-			if (!isCubierta(lineasTest[i],lineasCubiertas,numLineas)){
-				lineasCubiertas[numLineas+j] = lineasTest[i];
-				numCobertura++;
-				j++;	
-			}	
-		}
-		else{
-			lineasCubiertas[i] = lineasTest[i];
-			numCobertura++;
+	for (int i=0;i<d->num_coverage;i++){
+		if (d->coverage[i]->id_test == idTest){
+			cubierta = 0;
+			for (int j=0;!cubierta && j<d->num_coverage;j++){
+				if ((d->coverage[j]->id_test != idTest) && (d->coverage[j]->id_file == d->coverage[i]->id_file)
+					&& (d->coverage[j]->line == d->coverage[i]->line) && r->isCubierta[j]){
+					cubierta = 1;
+				}		
+			}
+			if (!cubierta){//Si no se ha encontrado ningun otro test que ya haya cubierto la misma linea se cubre por idTest
+				r->isCubierta[i] = 1;
+				numCobertura++;			
+			}
 		}
 	}
 	return numCobertura;
-	
+		
 }
-
 
 //Se crea una nueva tarea
 tarea * tarea_new(int nivel,int num_cases,int num_coverage) {
@@ -100,7 +70,7 @@ tarea * tarea_new(int nivel,int num_cases,int num_coverage) {
   t->coberturaTotal = 0;
   t->solucion = (int *) malloc(sizeof(int) * num_cases);
   t->coberturas = (int *) malloc(sizeof(int) * num_cases);
-  t->lineasCubiertas = (line_coverage *) malloc(sizeof(line_coverage) * num_coverage);
+  t->isCubierta = (int *) malloc(sizeof(int) * num_coverage);
   return t;
 }
 
@@ -108,19 +78,19 @@ tarea * tarea_new(int nivel,int num_cases,int num_coverage) {
 tarea * addTest(data * d,int idTest,int nivel,tarea * actual)
 {
   tarea *t = tarea_new(nivel,d->num_cases,d->num_coverage);
-  memcpy(t->solucion, actual->solucion, sizeof(int) * d->num_cases);
-  memcpy(t->coberturas, actual->coberturas, sizeof(int) * d->num_cases);
-  memcpy(t->lineasCubiertas,actual->lineasCubiertas, sizeof(line_coverage) * d->num_coverage);
-  /*for (int i = 0;i < d->num_cases;i++){
+  //memcpy(t->solucion, actual->solucion, sizeof(int) * d->num_cases);
+  //memcpy(t->coberturas, actual->coberturas, sizeof(int) * d->num_cases);
+  //memcpy(t->isCubierta,actual->isCubierta, sizeof(int) * d->num_coverage);
+  for (int i = 0;i < d->num_cases;i++){
 	t->solucion[i] = actual->solucion[i];
 	t->coberturas[i] = actual->coberturas[i];
   }
   for (int i=0; i< d->num_coverage;i++){
-	t->lineasCubiertas[i] = actual->lineasCubiertas[i];
-  }*/
+	t->isCubierta[i] = actual->isCubierta[i];
+  }
   t->solucion[nivel] = idTest;
   t->coberturaTotal = actual->coberturaTotal;
-  int numCobertura = addLineasCubiertas(d,t->lineasCubiertas,idTest);
+  int numCobertura = getCoberturaTest(t,d,idTest);
   t->coberturaTotal += numCobertura;
   t->coberturas[nivel] = t->coberturaTotal;
   return t;
@@ -151,11 +121,8 @@ void printTarea(tarea * t,int tamSolucion,int tamCoverage){
 	}
 	printf("\n");
 	printf("Lineas cubiertas:\n");
-	for (int k=0;t->lineasCubiertas[k].id_test!=0;k++){
-		//printf("coverage %d\n",k);
-		printf("Line:%d ",t->lineasCubiertas[k].line);
-		printf("Id_test:%d ",t->lineasCubiertas[k].id_test);
-		printf("Id_file:%d\n",t->lineasCubiertas[k].id_file);
+	for (int k=0;k<tamCoverage;k++){
+		printf("%d ",t->isCubierta[k]);
 	}
 	printf("\n");
 	
@@ -169,12 +136,14 @@ void printSolucion(tarea * t,int tamSolucion){
 	printf("\n");
 }
 
+
 void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * mejoresCoberturas){
 
 	if (nivel == n-1){ //Caso en el que llegamos al ultimo nivel
 		for (int i=0;i<n;i++){
 			if (valido(t->solucion,n,i+1)){
 				tarea * r = addTest(d,i+1,nivel,t);
+				printTarea(r,d->num_cases,d->num_coverage);
 				if (isMejorSolucion(r->coberturas,mejoresCoberturas,n)){
 					escribirMejorSolucion(r->solucion,n,mejorSolucion);
 					escribirMejoresCoberturas(r->coberturas,n,mejoresCoberturas);
@@ -187,6 +156,7 @@ void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * m
 		for (int i=0;i<n;i++){
 			if (valido(t->solucion,n,i+1)){
 				tarea * r = addTest(d,i+1,nivel,t); //Añade un nuevo test y se procesa en el arbol de busqueda
+				printTarea(r,d->num_cases,d->num_coverage);
 				//if (r->coberturas[nivel] >= mejoresCoberturas[nivel]){ //Si la solucion actual no mejora a la mejor solucion encontrada hasta el momento se aplica poda
 					backtracking(d,r,n,nivel+1,mejorSolucion,mejoresCoberturas);
 					free(r);
@@ -224,7 +194,7 @@ int main(int argc, char **argv)
   free(mejoresCoberturas);
   free(t->solucion);
   free(t->coberturas);
-  free(t->lineasCubiertas);
+  free(t->isCubierta);
   free(t);
   return 0;
   
