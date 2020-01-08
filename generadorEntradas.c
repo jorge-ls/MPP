@@ -21,7 +21,7 @@ int main(int argc,char *argv[]) {
 	printf("Entradas de cobertura:\n");
 	scanf("%d",&numEntradas);
 	srand(time(NULL));
-	
+	int fileLineas[numFicheros];
 	fprintf(fp,"%d\n",numTests);
 	for (int i=0;i<numTests;i++){
 		
@@ -31,14 +31,15 @@ int main(int argc,char *argv[]) {
 	fprintf(fp,"%d\n",numFicheros);
 	for (int i=0;i<numFicheros;i++){
 		numLineas = rand() % 21 + 30;
+		fileLineas[i] = numLineas;
 		fprintf(fp,"%d %d Fichero%d\n",numFichero,numLineas,numFichero);
 		numFichero++;
 	}
 	fprintf(fp,"%d\n",numEntradas);
 	for (int i=0;i<numEntradas;i++){
 		numTest = rand() % numTests + 1;
-		numFichero = rand() % (numFicheros-1) + 1;
-		numLinea = rand() % numLineas + 1;
+		numFichero = rand() % numFicheros + 1;
+		numLinea = rand() % fileLineas[numFichero-1] + 1;
 		fprintf(fp,"%d %d %d\n",numTest,numFichero,numLinea);
 	}
 	
