@@ -179,6 +179,9 @@ void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * m
 					escribirMejorSolucion(r->solucion,n,mejorSolucion);
 					escribirMejoresCoberturas(r->coberturas,n,mejoresCoberturas);
 				}
+				free(r->solucion);
+				free(r->coberturas);
+				free(r->lineasCubiertas);
 				free(r);
 			}	
 		}
@@ -189,7 +192,11 @@ void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * m
 				tarea * r = addTest(d,i+1,nivel,t); //Añade un nuevo test y se procesa en el arbol de busqueda
 				//if (r->coberturas[nivel] >= mejoresCoberturas[nivel]){ //Si la solucion actual no mejora a la mejor solucion encontrada hasta el momento se aplica poda
 					backtracking(d,r,n,nivel+1,mejorSolucion,mejoresCoberturas);
+					free(r->solucion);
+					free(r->coberturas);
+					free(r->lineasCubiertas);
 					free(r);
+
 				//}		
 			}
 		}

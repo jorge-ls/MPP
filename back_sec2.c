@@ -5,11 +5,11 @@
 
 
 typedef struct {
-  int nivel;
-  int coberturaTotal;
-  int * solucion; 
-  int * coberturas;
-  int * isCubierta;
+  int nivel; //Nivel actual
+  int coberturaTotal; //Cobertura total de las lineas de codigo de la solucion encontrada
+  int * solucion; //Array donde se va guardando la solución encontrada
+  int * coberturas; //Array en el cual se indican las coberturas asociadas a la solución
+  int * isCubierta; //Array que indica si una entrada de cobertura esta cubierta por un test
 } tarea;
  
 
@@ -36,9 +36,6 @@ void escribirMejoresCoberturas(int * coberturas,int n,int * mejoresCoberturas){
 		mejoresCoberturas[i] = coberturas[i];
 	}
 }
-
-
-
 
 //Funcion para obtener la cobertura de lineas de un test
 int getCoberturaTest(tarea * r,data * d,int idTest){
@@ -78,16 +75,16 @@ tarea * tarea_new(int nivel,int num_cases,int num_coverage) {
 tarea * addTest(data * d,int idTest,int nivel,tarea * actual)
 {
   tarea *t = tarea_new(nivel,d->num_cases,d->num_coverage);
-  //memcpy(t->solucion, actual->solucion, sizeof(int) * d->num_cases);
-  //memcpy(t->coberturas, actual->coberturas, sizeof(int) * d->num_cases);
-  //memcpy(t->isCubierta,actual->isCubierta, sizeof(int) * d->num_coverage);
-  for (int i = 0;i < d->num_cases;i++){
+  memcpy(t->solucion, actual->solucion, sizeof(int) * d->num_cases);
+  memcpy(t->coberturas, actual->coberturas, sizeof(int) * d->num_cases);
+  memcpy(t->isCubierta,actual->isCubierta, sizeof(int) * d->num_coverage);
+  /*for (int i = 0;i < d->num_cases;i++){
 	t->solucion[i] = actual->solucion[i];
 	t->coberturas[i] = actual->coberturas[i];
   }
   for (int i=0; i< d->num_coverage;i++){
 	t->isCubierta[i] = actual->isCubierta[i];
-  }
+  }*/
   t->solucion[nivel] = idTest;
   t->coberturaTotal = actual->coberturaTotal;
   int numCobertura = getCoberturaTest(t,d,idTest);
@@ -96,6 +93,7 @@ tarea * addTest(data * d,int idTest,int nivel,tarea * actual)
   return t;
 }
 
+//Funcion para guardar las coberturas de la mejor solucion encontrada hasta el momento
 int isMejorSolucion(int * coberturas,int * mejoresCoberturas,int n){
 	int mejorSolucion = 0;
 	for (int i=0;i<n;i++){
@@ -136,18 +134,21 @@ void printSolucion(tarea * t,int tamSolucion){
 	printf("\n");
 }
 
-
+//Algoritmo de backtracking
 void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * mejoresCoberturas){
 
 	if (nivel == n-1){ //Caso en el que llegamos al ultimo nivel
 		for (int i=0;i<n;i++){
 			if (valido(t->solucion,n,i+1)){
 				tarea * r = addTest(d,i+1,nivel,t);
-				printTarea(r,d->num_cases,d->num_coverage);
+				//printTarea(r,d->num_cases,d->num_coverage);
 				if (isMejorSolucion(r->coberturas,mejoresCoberturas,n)){
 					escribirMejorSolucion(r->solucion,n,mejorSolucion);
 					escribirMejoresCoberturas(r->coberturas,n,mejoresCoberturas);
 				}
+				free(r->solucion);
+				free(r->coberturas);
+				free(r->isCubierta);
 				free(r);
 			}	
 		}
@@ -156,11 +157,13 @@ void backtracking(data * d,tarea * t,int n,int nivel,int * mejorSolucion,int * m
 		for (int i=0;i<n;i++){
 			if (valido(t->solucion,n,i+1)){
 				tarea * r = addTest(d,i+1,nivel,t); //Añade un nuevo test y se procesa en el arbol de busqueda
-				printTarea(r,d->num_cases,d->num_coverage);
-				//if (r->coberturas[nivel] >= mejoresCoberturas[nivel]){ //Si la solucion actual no mejora a la mejor solucion encontrada hasta el momento se aplica poda
-					backtracking(d,r,n,nivel+1,mejorSolucion,mejoresCoberturas);
-					free(r);
-				//}		
+				//printTarea(r,d->num_cases,d->num_coverage);
+				backtracking(d,r,n,nivel+1,mejorSolucion,mejoresCoberturas);
+				free(r->solucion);
+				free(r->coberturas);
+				free(r->isCubierta);
+				free(r);
+					
 			}
 		}
 	}
