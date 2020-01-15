@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "reader.h"
 #include <string.h>
+#include <omp.h>
 
 
 typedef struct {
@@ -181,11 +182,12 @@ int main(int argc, char **argv)
   data *d = practica_reader(f);
   //print_data(d);
   tarea * t = NULL;
+  double segundos = 0;
   int nivel = 0; //nivel en el arbol
   int * mejorSolucion = (int *) malloc(sizeof(int) * d->num_cases);
   int * mejoresCoberturas = (int *) malloc(sizeof(int) * d->num_cases); 
-  
-  
+  double inicio,fin = 0;
+  inicio = omp_get_wtime();
   t = tarea_new(nivel,d->num_cases,d->num_coverage);
   backtracking(d,t,d->num_cases,nivel,mejorSolucion,mejoresCoberturas);
   printf("Ordenacion óptima de los casos de prueba: \n");
@@ -193,6 +195,13 @@ int main(int argc, char **argv)
 	printf("%d ",mejorSolucion[i]);
   }
   printf("\n");
+  printf("Coberturas:\n");
+  for (int i=0;i<d->num_cases;i++){
+	printf("%d ",mejoresCoberturas[i]);
+  }
+  printf("\n");	
+  fin = omp_get_wtime();
+  printf("Tiempo de ejecucion: %2.4f segundos\n",fin-inicio);
   free(mejorSolucion);
   free(mejoresCoberturas);
   free(t->solucion);

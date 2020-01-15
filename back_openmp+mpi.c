@@ -3,6 +3,7 @@
 #include "reader.h"
 #include <string.h>
 #include <mpi.h>
+#include <omp.h>
 #include "vector.h"
 
 #define NUM_THREADS 8

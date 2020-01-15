@@ -5,7 +5,7 @@
 #include <omp.h>
 #include "vector.h"
 
-#define NUM_THREADS 8
+#define NUM_THREADS 12
 
 
 typedef struct {
@@ -213,16 +213,12 @@ int main(int argc, char **argv)
   int maxNivel = 1;
   omp_set_num_threads(NUM_THREADS);
   if (d->num_cases < 4){//Si el problema es muy pequeño se hace secuencial
+	printf("Se hace problema en secuencial\n");
 	t = tarea_new(nivel,d->num_cases,d->num_coverage);
 	backtracking(d,t,d->num_cases,nivel,mejorSolucion,mejoresCoberturas);
   }
   else{
   //Se generan las tareas a repartir entre los hilos
-
-  /*for (int j=1;j<maxNivel;j++){
-	maxTareas = maxTareas * (d->num_cases - j);
-	printf("Max tareas %d\n",maxTareas);
-  }*/
   
   while (maxTareas < NUM_THREADS){
 	maxTareas = maxTareas * (d->num_cases - maxNivel);
@@ -232,18 +228,9 @@ int main(int argc, char **argv)
   tarea * tareas = (tarea *) malloc(sizeof(tarea) * maxTareas);
   printf("El numero maximo de tareas generadas es %d\n",maxTareas);
   inicio = omp_get_wtime();
-  //#pragma omp parallel shared(bolsa,maxTareas)
-  //{
-	//#pragma omp single
-	//{
-  		t = tarea_new(nivel,d->num_cases,d->num_coverage);
-		//#pragma omp taskgroup
-		//{
-			//#pragma omp task firstprivate(t)
-  			generarTareas(bolsa,d,t,maxNivel,nivel,d->num_cases);
-		//}
-	//}
-  //}
+  t = tarea_new(nivel,d->num_cases,d->num_coverage);
+  generarTareas(bolsa,d,t,maxNivel,nivel,d->num_cases);
+
   printf("El numero de elementos de la bolsa es: %d\n",size(bolsa));
   for (int i=0;i<maxTareas;i++){
 	tarea * actual = (tarea *) pop(bolsa);
@@ -268,7 +255,12 @@ int main(int argc, char **argv)
 	printf("%d ",mejorSolucion[i]);
   }
   printf("\n");
-  
+  printf("Coberturas: \n");
+  for (int i=0;i<d->num_cases;i++){
+	printf("%d ",mejoresCoberturas[i]);
+  }
+  printf("\n");
+
   free(mejorSolucion);
   free(mejoresCoberturas);
   free(t->solucion);
